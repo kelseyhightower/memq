@@ -13,9 +13,10 @@ var ErrNotExist = errors.New("does not exist")
 var ErrAlreadyExist = errors.New("already exists")
 
 type Message struct {
-	Id        string    `json:"id"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
+	Kind              string    `json:"kind"`
+	Id                string    `json:"id"`
+	Body              string    `json:"body"`
+	CreationTimestamp time.Time `json:"creationTimestamp"`
 }
 
 type Queue struct {
@@ -30,6 +31,7 @@ type Broker struct {
 }
 
 type Stats struct {
+	Kind   string `json:"kind"`
 	Queues []Stat `json:"queues"`
 }
 
@@ -39,15 +41,15 @@ type Stat struct {
 }
 
 func newStats() *Stats {
-	return &Stats{make([]Stat, 0)}
+	return &Stats{"stats", make([]Stat, 0)}
 }
 
-func NewMessage(body string) (*Message, error) {
+func newMessage(body string) (*Message, error) {
 	id, err := uuid()
 	if err != nil {
 		return nil, err
 	}
-	m := &Message{id, body, time.Now()}
+	m := &Message{"message", id, body, time.Now()}
 	return m, nil
 }
 
@@ -93,11 +95,17 @@ func (b *Broker) DrainQueue(name string) error {
 	return nil
 }
 
-func (b *Broker) PutMessage(name string, message *Message) error {
+func (b *Broker) PutMessage(name, body string) error {
 	q, ok := b.Queues[name]
 	if !ok {
 		return ErrNotExist
 	}
+
+	message, err := newMessage(body)
+	if err != nil {
+		return err
+	}
+
 	q.mu.Lock()
 	q.Messages = append(q.Messages, message)
 	q.Depth += 1

@@ -6,66 +6,57 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/kelseyhightower/memq/broker"
+
+	"github.com/gorilla/mux"
 )
 
-var bkr *broker.Broker
-
-func SetBroker(b *broker.Broker) {
-	bkr = b
+type Server struct {
+	broker *broker.Broker
 }
 
-func CreateQueueHandler(w http.ResponseWriter, r *http.Request) {
+func NewServer(b *broker.Broker) *Server {
+	return &Server{broker: b}
+}
+
+func (s *Server) CreateQueueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	bkr.CreateQueue(vars["name"])
+	s.broker.CreateQueue(vars["name"])
 }
 
-func DeleteQueueHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DeleteQueueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	bkr.DeleteQueue(vars["name"])
+	s.broker.DeleteQueue(vars["name"])
 }
 
-func DrainQueueHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DrainQueueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	bkr.DrainQueue(vars["name"])
+	s.broker.DrainQueue(vars["name"])
 }
 
-func PutMessageHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) PutMessageHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
 	vars := mux.Vars(r)
-	m, err := broker.NewMessage(string(body))
-	if err != nil {
+	if err := s.broker.PutMessage(vars["name"], string(body)); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	if err := bkr.PutMessage(vars["name"], m); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	data, err := json.MarshalIndent(&m, "", "  ")
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Write(data)
 }
 
-func GetMessageHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetMessageHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	m, err := bkr.GetMessage(vars["name"])
+	m, err := s.broker.GetMessage(vars["name"])
+	if err == broker.ErrEmptyQueue {
+		log.Println(err)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -77,13 +68,12 @@ func GetMessageHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
 	w.Write(data)
 }
 
-func StatsHandler(w http.ResponseWriter, r *http.Request) {
-	s := bkr.Stats()
-	data, err := json.MarshalIndent(&s, "", "  ")
+func (s *Server) StatsHandler(w http.ResponseWriter, r *http.Request) {
+	stats := s.broker.Stats()
+	data, err := json.MarshalIndent(&stats, "", "  ")
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)

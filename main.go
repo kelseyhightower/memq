@@ -5,6 +5,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 
@@ -14,14 +15,25 @@ import (
 	"github.com/kelseyhightower/memq/broker"
 )
 
+var (
+	listenAddr string
+)
+
 func main() {
-	api.SetBroker(broker.New())
+	flag.StringVar(&listenAddr, "http", "0.0.0.0:80", "HTTP listen address.")
+	flag.Parse()
+
+	log.Printf("memq server starting...")
+	log.Printf("listening on %s", listenAddr)
+
+	s := api.NewServer(broker.New())
+
 	r := mux.NewRouter()
-	r.HandleFunc("/stats", api.StatsHandler).Methods("GET")
-	r.HandleFunc("/queues/{name}", api.CreateQueueHandler).Methods("POST")
-	r.HandleFunc("/queues/{name}", api.DeleteQueueHandler).Methods("DELETE")
-	r.HandleFunc("/queues/{name}/drain", api.DrainQueueHandler).Methods("POST")
-	r.HandleFunc("/queues/{name}/messages", api.GetMessageHandler).Methods("GET")
-	r.HandleFunc("/queues/{name}/messages", api.PutMessageHandler).Methods("POST")
-	log.Fatal(http.ListenAndServe(":8000", r))
+	r.HandleFunc("/stats", s.StatsHandler).Methods("GET")
+	r.HandleFunc("/queues/{name}", s.CreateQueueHandler).Methods("POST")
+	r.HandleFunc("/queues/{name}", s.DeleteQueueHandler).Methods("DELETE")
+	r.HandleFunc("/queues/{name}/drain", s.DrainQueueHandler).Methods("POST")
+	r.HandleFunc("/queues/{name}/messages", s.GetMessageHandler).Methods("GET")
+	r.HandleFunc("/queues/{name}/messages", s.PutMessageHandler).Methods("POST")
+	log.Fatal(http.ListenAndServe(listenAddr, r))
 }
