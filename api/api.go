@@ -2,85 +2,53 @@ package api
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
 
 	"github.com/kelseyhightower/memq/broker"
 )
 
 var bkr *broker.Broker
 
-type CreateQueueRequest struct {
-	Name string `json:"name"`
-}
-
-type DeleteQueueRequest struct {
-	Name string `json:"name"`
-}
-
-type DrainQueueRequest struct {
-	Name string `json:"name"`
-}
-
-type PutMessageRequest struct {
-	Queue string `json:"queue"`
-	Body  string `json:"body"`
-}
-
-type GetMessageRequest struct {
-	Queue string `json:"queue"`
-}
-
 func SetBroker(b *broker.Broker) {
 	bkr = b
 }
 
 func CreateQueueHandler(w http.ResponseWriter, r *http.Request) {
-	var cqr CreateQueueRequest
-	if err := json.NewDecoder(r.Body).Decode(&cqr); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	bkr.CreateQueue(cqr.Name)
+	vars := mux.Vars(r)
+	bkr.CreateQueue(vars["name"])
 }
 
 func DeleteQueueHandler(w http.ResponseWriter, r *http.Request) {
-	var dqr DeleteQueueRequest
-	if err := json.NewDecoder(r.Body).Decode(&dqr); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	bkr.DeleteQueue(dqr.Name)
+	vars := mux.Vars(r)
+	bkr.DeleteQueue(vars["name"])
 }
 
 func DrainQueueHandler(w http.ResponseWriter, r *http.Request) {
-	var dqr DrainQueueRequest
-	if err := json.NewDecoder(r.Body).Decode(&dqr); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	bkr.DrainQueue(dqr.Name)
+	vars := mux.Vars(r)
+	bkr.DrainQueue(vars["name"])
 }
 
 func PutMessageHandler(w http.ResponseWriter, r *http.Request) {
-	var pmr PutMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&pmr); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	m, err := broker.NewMessage(pmr.Body)
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if err := bkr.PutMessage(pmr.Queue, m); err != nil {
+	vars := mux.Vars(r)
+	m, err := broker.NewMessage(string(body))
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := bkr.PutMessage(vars["name"], m); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -96,14 +64,8 @@ func PutMessageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetMessageHandler(w http.ResponseWriter, r *http.Request) {
-	var gmr GetMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&gmr); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	m, err := bkr.GetMessage(gmr.Queue)
+	vars := mux.Vars(r)
+	m, err := bkr.GetMessage(vars["name"])
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)

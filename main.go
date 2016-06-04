@@ -8,19 +8,20 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
+
 	"github.com/kelseyhightower/memq/api"
 	"github.com/kelseyhightower/memq/broker"
 )
 
 func main() {
 	api.SetBroker(broker.New())
-
-	http.HandleFunc("/broker/stats", api.StatsHandler)
-	http.HandleFunc("/queue/create", api.CreateQueueHandler)
-	http.HandleFunc("/queue/delete", api.DeleteQueueHandler)
-	http.HandleFunc("/queue/drain", api.DrainQueueHandler)
-	http.HandleFunc("/message/get", api.GetMessageHandler)
-	http.HandleFunc("/message/put", api.PutMessageHandler)
-
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	r := mux.NewRouter()
+	r.HandleFunc("/stats", api.StatsHandler).Methods("GET")
+	r.HandleFunc("/queues/{name}", api.CreateQueueHandler).Methods("POST")
+	r.HandleFunc("/queues/{name}", api.DeleteQueueHandler).Methods("DELETE")
+	r.HandleFunc("/queues/{name}/drain", api.DrainQueueHandler).Methods("POST")
+	r.HandleFunc("/queues/{name}/messages", api.GetMessageHandler).Methods("GET")
+	r.HandleFunc("/queues/{name}/messages", api.PutMessageHandler).Methods("POST")
+	log.Fatal(http.ListenAndServe(":8000", r))
 }
